@@ -26,7 +26,7 @@ func createNonce() (string, error) {
 	return nonce, nil
 }
 
-func NewLoginController(stateFunc func(*fiber.Ctx) *auth.State) func(*fiber.Ctx) error {
+func NewLoginController[TState any](stateFunc func(*fiber.Ctx) TState) func(*fiber.Ctx) error {
 	return func(c *fiber.Ctx) error {
 		state := stateFunc(c)
 		nonce, err := createNonce()
@@ -34,7 +34,7 @@ func NewLoginController(stateFunc func(*fiber.Ctx) *auth.State) func(*fiber.Ctx)
 			return err // TODO: Do something else here?
 		}
 
-		stateParam, err := state.Encode(nonce)
+		stateParam, err := auth.EncodeState(state, nonce)
 		if err != nil {
 			return err // TODO: Do something else here?
 		}
@@ -46,10 +46,10 @@ func NewLoginController(stateFunc func(*fiber.Ctx) *auth.State) func(*fiber.Ctx)
 	}
 }
 
-func NewCallbackController(handleToken func(*fiber.Ctx, *auth.State, *oauth2.Token) error) func(*fiber.Ctx) error {
+func NewCallbackController[TState any](onValid func(c *fiber.Ctx, state TState, token *oauth2.Token) error) func(*fiber.Ctx) error {
 	return func(c *fiber.Ctx) error {
 		stateParam := c.Query("state")
-		state, nonce, err := auth.ParseState(stateParam)
+		state, nonce, err := auth.ParseState[TState](stateParam)
 		if err != nil {
 			c.Status(fiber.StatusUnauthorized)
 			return c.SendString(fmt.Sprintf("state is invalid: %s", err))
@@ -71,6 +71,6 @@ func NewCallbackController(handleToken func(*fiber.Ctx, *auth.State, *oauth2.Tok
 			return c.SendStatus(401)
 		}
 
-		return handleToken(c, state, token)
+		return onValid(c, *state, token)
 	}
 }

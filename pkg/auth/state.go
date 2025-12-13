@@ -8,15 +8,11 @@ import (
 	"strings"
 )
 
-type State struct {
-	CameFrom string `json:"came_from"`
+func EncodeState[T any](state T, nonce string) (string, error) {
+	return encodeState(state, nonce, AuthConfig.LoginConfig.ClientSecret)
 }
 
-func (state State) Encode(nonce string) (string, error) {
-	return encode(state, nonce, AuthConfig.LoginConfig.ClientSecret)
-}
-
-func ParseState(param string) (*State, string, error) {
+func ParseState[T any](param string) (*T, string, error) {
 	parts := strings.Split(param, ".")
 	if len(parts) != 3 {
 		return nil, "", fmt.Errorf("invalid state parameter - expected 3 parts, got %d", len(parts))
@@ -29,7 +25,7 @@ func ParseState(param string) (*State, string, error) {
 		return nil, "", fmt.Errorf("invalid state parameter - signature is invalid")
 	}
 
-	var state State
+	var state T
 	encodedStateBytes, err := base64.StdEncoding.DecodeString(encodedState)
 	if err != nil {
 		return nil, "", err
@@ -44,7 +40,7 @@ func ParseState(param string) (*State, string, error) {
 // This is based on this SO answer: https://stackoverflow.com/a/77029859
 // The solution there is modified to include some useful state, in this case just
 // a Base64-encoded URL to ultimately redirect to.
-func encode(state State, nonce string, privateKey string) (string, error) {
+func encodeState[T any](state T, nonce string, privateKey string) (string, error) {
 	jsonStateBytes, err := json.Marshal(state)
 	if err != nil {
 		return "", err
